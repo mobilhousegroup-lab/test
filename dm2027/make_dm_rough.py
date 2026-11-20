@@ -24,6 +24,29 @@ def text(d, x, y, t, f, fill, sw=0, sf=None, anchor="l"):
     d.text((x - b[0], y - b[1]), t, font=f, fill=fill, stroke_width=sw, stroke_fill=sf)
     return w, h
 
+def rich(d, cx, base, segs, size, w_max=None, align="c"):
+    """複数の色・太さを1行に並べる。segs=[(文字, {fill, weight, mul, bg, sw, sf})]。baseはベースラインのy"""
+    def build(sz):
+        out = []
+        for t, o in segs:
+            f = font(o.get("weight", "Black"), int(sz * o.get("mul", 1)))
+            out.append((t, o, f, d.textlength(t, font=f) + 2 * o.get("sw", 0) + (16 if o.get("bg") else 0)))
+        return out
+    while True:
+        parts = build(size); tw = sum(p[3] for p in parts)
+        if not w_max or tw <= w_max or size <= 10: break
+        size -= 1
+    x = cx - tw / 2 if align == "c" else cx
+    for t, o, f, w in parts:
+        if o.get("bg"):
+            asc = f.size * 0.92
+            d.rectangle((x, base - asc, x + w, base + f.size * 0.18), fill=o["bg"])
+            x += 8
+        d.text((x + o.get("sw", 0), base), t, font=f, fill=o.get("fill", WHITE), anchor="ls",
+               stroke_width=o.get("sw", 0), stroke_fill=o.get("sf"))
+        x += w - (8 if o.get("bg") else 0)
+    return tw
+
 def fit(d, t, w_max, weight, size, sw=0):
     while size > 8 and tb(d, t, font(weight, size), sw)[1] > w_max: size -= 1
     return font(weight, size)
@@ -80,54 +103,62 @@ def front():
     text(d, 150, 125, "料金後納", font("Medium", 30), INK, anchor="c"); text(d, 150, 168, "郵便", font("Medium", 30), INK, anchor="c")
     d.rounded_rectangle((60, 250, 240, 300), radius=12, outline=INK, width=3)
     text(d, 150, 260, "ゆうメール", font("Medium", 26), INK, anchor="c")
-    d.rectangle((50, 330, 300, 450), fill=RED); d.rectangle((60, 340, 290, 440), fill=GOLD)
+    d.rectangle((50, 316, 300, 418), fill=RED); d.rectangle((60, 324, 290, 410), fill=GOLD)
     for i, t in enumerate(("コバック", "ご利用のお客様", "限定案内状")):
-        text(d, 175, 350 + i * 30, t, font("Black", 24), DRED, anchor="c")
+        text(d, 175, 332 + i * 26, t, font("Black", 22), DRED, anchor="c")
     # 宛名位置
-    dashed_rect(d, (420, 50, 1180, 370), GREY, w=3)
-    text(d, 800, 195, "宛名ラベル貼付位置", font("Medium", 30), GREY, anchor="c")
+    dashed_rect(d, (420, 40, 1180, 400), GREY, w=3)
+    text(d, 800, 200, "宛名ラベル貼付位置", font("Medium", 30), GREY, anchor="c")
 
     # メイン帯
-    top, bot = 465, 1505
+    top, bot = 430, 1505
     red_bg(d, top, bot)
-    text(d, 60, top + 20, "2027", font("Black", 48), GOLD)
-    text(d, 650, top + 12, "新春初売!!", font("Black", 165), YEL, 10, DRED, anchor="c")
+    text(d, 50, top + 18, "2027", font("Black", 46), GOLD)
+    text(d, 650, top + 10, "新春初売!!", font("Black", 150), YEL, 10, DRED, anchor="c")
+    # サブコピー（2行）
+    Y = {"fill": YEL}; Wt = {"fill": WHITE}
+    rich(d, 620, top + 206, [("定額リースも、低金利ローンも、現金も！", Wt)], 36, W - 100)
+    rich(d, 620, top + 254, [("あなたに一番お得な買い方が見つかる", Wt),
+                             ("27日間", {"fill": RED, "bg": YEL, "mul": 1.25}), ("！", Wt)], 36, W - 100)
     pill = "1/5(火)〜1/31(日)　3店舗同時開催"
-    pf = font("Black", 42); _, pw, ph = tb(d, pill, pf)
-    d.rounded_rectangle((620 - pw / 2 - 40, top + 200, 620 + pw / 2 + 40, top + 200 + ph + 28), radius=40, fill=WHITE)
-    text(d, 620, top + 214, pill, pf, RED, anchor="c")
+    pf = font("Black", 38); _, pw, ph = tb(d, pill, pf)
+    d.rounded_rectangle((620 - pw / 2 - 36, top + 276, 620 + pw / 2 + 36, top + 276 + ph + 24), radius=36, fill=WHITE)
+    text(d, 620, top + 288, pill, pf, RED, anchor="c")
 
     # 月々1.1万円（左）＋車両写真（右）
-    y = top + 295
-    text(d, 60, y, "ジョイカルの新車コミコミ定額プラン", font("Bold", 32), WHITE)
-    placeholder(d, (60, y + 48, 300, y + 98), "7MAXロゴ")
-    text(d, 320, y + 50, "新車が", font("Black", 50), WHITE, 4, DRED)
-    pw2 = price_man(d, 60, y + 125, "1.1", 175)
-    text(d, 60 + pw2, y + 112, "税込", font("Black", 28), WHITE, anchor="r")
-    text(d, 60, y + 290, "3年でも 5年でも 7年でも 月々同額!", font("Black", 40), YEL, 4, DRED)
-    placeholder(d, (800, y + 20, 1180, y + 280), "車両写真（ハスラー等）")
-    d.rounded_rectangle((800, y + 290, 1180, y + 335), radius=10, fill=WHITE)
+    y = top + 360
+    rich(d, 620, y + 34, [("スマホ代感覚", {"fill": RED, "bg": YEL}), ("で新車に乗れる！", Wt),
+                          ("ジョイカルのコミコミ定額プラン", {"fill": WHITE, "weight": "Bold", "mul": 0.85})], 38, W - 90)
+    placeholder(d, (60, y + 60, 290, y + 106), "7MAXロゴ")
+    text(d, 310, y + 58, "新車が", font("Black", 46), WHITE, 4, DRED)
+    pw2 = price_man(d, 60, y + 128, "1.1", 160)
+    text(d, 60 + pw2, y + 116, "税込", font("Black", 26), WHITE, anchor="r")
+    text(d, 60, y + 276, "3年でも 5年でも 7年でも 月々同額!", font("Black", 38), YEL, 4, DRED)
+    placeholder(d, (800, y + 62, 1180, y + 272), "車両写真（ハスラー等）")
+    d.rounded_rectangle((800, y + 280, 1180, y + 322), radius=10, fill=WHITE)
     t = "車検・税金・自賠責・オイル交換もコミコミ"
-    text(d, 990, y + 300, t, fit(d, t, 360, "Bold", 24), RED, anchor="c")
+    text(d, 990, y + 289, t, fit(d, t, 360, "Bold", 23), RED, anchor="c")
 
-    # 支払い方法の帯
-    by = y + 348
-    d.rectangle((0, by, W, by + 66), fill=WHITE)
-    text(d, 620, by + 12, "現金でも　ローン（月々7,500円〜）でも　7MAXでもOK!", font("Black", 38), RED, anchor="c")
-    text(d, 620, by + 80, "さらに 新車ご購入で 車検7年分 差し上げます!!", font("Black", 46), WHITE, 5, DRED, anchor="c")
-    text(d, 620, by + 140, "※車検基本料2回分・12ヶ月定期点検4回分・エンジンオイル交換13回分（条件は裏面）", font("Medium", 20), CREAM, anchor="c")
+    # 比較の帯（2行）
+    by = y + 336
+    d.rectangle((0, by, W, by + 104), fill=WHITE)
+    rich(d, 620, by + 48, [("「リースとローン、どっちが得？」も", {"fill": INK}),
+                           ("全部比較できます！", {"fill": RED, "mul": 1.15})], 38, W - 80)
+    rich(d, 620, by + 92, [("現金・ローン・7MAX ", {"fill": INK, "weight": "Bold"}), ("すべて対応！", {"fill": RED})], 30, W - 80)
+    text(d, 620, by + 116, "さらに 新車ご購入で 車検7年分 差し上げます!!", font("Black", 42), WHITE, 5, DRED, anchor="c")
+    text(d, 620, by + 170, "※車検基本料2回分・12ヶ月定期点検4回分・エンジンオイル交換13回分（条件は裏面）", font("Medium", 19), CREAM, anchor="c")
 
     # 持参クーポン
-    cy0, cy1 = by + 176, bot - 14
+    cy0, cy1 = by + 200, bot - 12
     d.rectangle((40, cy0, W - 40, cy1), fill=CREAM); dashed_rect(d, (40, cy0, W - 40, cy1), DRED, w=4)
     d.rectangle((56, cy0 + 14, 380, cy1 - 14), fill=RED)
-    text(d, 218, cy0 + 26, "このDMご持参で", font("Black", 28), WHITE, anchor="c")
-    text(d, 218, cy0 + 66, "先着50名様", font("Black", 46), YEL, anchor="c")
-    text(d, 218, cy0 + 126, "ご成約で", font("Black", 26), WHITE, anchor="c")
-    text(d, 800, cy0 + 20, "選べる特大プレゼント!", font("Black", 54), RED, anchor="c")
+    text(d, 218, cy0 + 22, "このDMご持参で", font("Black", 26), WHITE, anchor="c")
+    text(d, 218, cy0 + 58, "先着50名様", font("Black", 44), YEL, anchor="c")
+    text(d, 218, cy0 + 114, "ご成約で", font("Black", 24), WHITE, anchor="c")
+    text(d, 800, cy0 + 16, "選べる特大プレゼント!", font("Black", 50), RED, anchor="c")
     for i in range(5):
         x = 410 + i * 154
-        placeholder(d, (x, cy0 + 88, x + 142, cy1 - 16), "景品" if i < 4 else "ほか多数")
+        placeholder(d, (x, cy0 + 80, x + 142, cy1 - 14), "景品" if i < 4 else "ほか多数")
 
     # 店舗
     sy = bot + 10
@@ -153,22 +184,24 @@ TAG = {"軽自動車": (230, 120, 0), "コンパクト": (0, 90, 170), "ミニ�
 
 def back():
     im = Image.new("RGB", (W, H), WHITE); d = ImageDraw.Draw(im)
-    red_bg(d, 0, 250)
-    placeholder(d, (40, 26, 240, 86), "JOYCALロゴ")
-    placeholder(d, (40, 96, 240, 150), "7MAXロゴ")
-    text(d, 660, 20, "月々いくらで乗れる?", font("Black", 72), YEL, 6, DRED, anchor="c")
-    text(d, 660, 118, "7MAXなら 3年でも5年でも7年でも 月々同額!", fit(d, "7MAXなら 3年でも5年でも7年でも 月々同額!", 760, "Black", 40), WHITE, 4, DRED, anchor="c")
-    placeholder(d, (1090, 20, 1210, 160), "キャラ")
+    red_bg(d, 0, 286)
+    placeholder(d, (40, 24, 220, 80), "JOYCALロゴ")
+    placeholder(d, (40, 90, 220, 140), "7MAXロゴ")
+    placeholder(d, (1100, 20, 1210, 170), "キャラ")
+    rich(d, 660, 78, [("憧れの新車、", {"fill": WHITE, "sw": 4, "sf": DRED, "mul": 0.8}),
+                      ("月々いくらで乗れる？", {"fill": YEL, "sw": 5, "sf": DRED})], 62, 840)
+    rich(d, 660, 134, [("人気の", {"fill": WHITE}), ("軽からミニバンまで", {"fill": YEL}), ("全車種勢揃い！", {"fill": WHITE})], 38, 840)
+    rich(d, 660, 182, [("7MAXなら ", {"fill": WHITE, "weight": "Bold"}), ("3年でも5年でも7年でも 月々同額!", {"fill": WHITE})], 30, 840)
     inc = ["車検費用", "自動車税", "自賠責", "オイル交換", "諸費用", "マット・バイザー"]
-    text(d, 40, 186, "コミコミ!", font("Black", 30), YEL)
+    text(d, 40, 222, "コミコミ!", font("Black", 30), YEL)
     bw = (W - 200 - 5 * 8) / 6
     for i, t in enumerate(inc):
         x = 190 + i * (bw + 8)
-        d.rounded_rectangle((x, 180, x + bw, 228), radius=8, fill=WHITE)
-        text(d, x + bw / 2, 191, t, fit(d, t, bw - 10, "Black", 22), GREEN, anchor="c")
+        d.rounded_rectangle((x, 216, x + bw, 264), radius=8, fill=WHITE)
+        text(d, x + bw / 2, 227, t, fit(d, t, bw - 10, "Black", 22), GREEN, anchor="c")
 
     # 目玉4台（2x2）
-    gx, gy, gap = 40, 270, 16; cw = (W - 2 * gx - gap) / 2; ch = 365
+    gx, gy, gap = 40, 302, 14; cw = (W - 2 * gx - gap) / 2; ch = 345
     for i, (cat, name, lease, loan) in enumerate(FEATURED):
         r, c = divmod(i, 2); x = gx + c * (cw + gap); y = gy + r * (ch + gap)
         d.rounded_rectangle((x, y, x + cw, y + ch), radius=14, fill=WHITE, outline=RED, width=4)
@@ -240,8 +273,9 @@ def back():
              "※価格・条件は2027年1月時点のものです。詳しくは店頭スタッフまでお尋ねください。"]
     for k, n in enumerate(notes):
         text(d, 40, y5 + k * 26, n, fit(d, n, W - 80, "Medium", 18), DGREY)
-    d.rectangle((0, H - 48, W, H), fill=RED)
-    text(d, 620, H - 40, "コバックは新車が安い!!　コバックは新車が安い!!　コバックは新車が安い!!", font("Black", 30), WHITE, anchor="c")
+    d.rectangle((0, H - 56, W, H), fill=RED)
+    rich(d, 620, H - 17, [("先着50名様の選べる特大プレゼントは", {"fill": WHITE}), ("早い者勝ち！", {"fill": YEL, "mul": 1.2}),
+                          ("このDMを持って店舗へ急げ！", {"fill": WHITE})], 30, W - 50)
     return im
 
 if __name__ == "__main__":
